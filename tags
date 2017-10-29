@@ -1,0 +1,60 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+FifoNode	main.c	/^typedef struct FifoNode$/;"	s	file:
+FifoNode	main.c	/^} FifoNode;$/;"	t	typeref:struct:FifoNode	file:
+FifoQueue	main.c	/^typedef struct FifoQueue$/;"	s	file:
+FifoQueue	main.c	/^} FifoQueue;$/;"	t	typeref:struct:FifoQueue	file:
+block_size	disk.c	/^	int block_size;$/;"	m	struct:disk	file:
+capacity	main.c	/^    unsigned capacity;$/;"	m	struct:FifoQueue	file:
+check_bit	main.c	18;"	d	file:
+compare_bytes	program.c	/^static int compare_bytes( const void *pa, const void *pb )$/;"	f	file:
+data	main.c	/^    int data;$/;"	m	struct:FifoNode	file:
+disk	disk.c	/^struct disk {$/;"	s	file:
+disk	main.c	/^struct disk *disk = NULL;$/;"	v	typeref:struct:disk
+disk_close	disk.c	/^void disk_close( struct disk *d )$/;"	f
+disk_nblocks	disk.c	/^int disk_nblocks( struct disk *d )$/;"	f
+disk_open	disk.c	/^struct disk * disk_open( const char *diskname, int nblocks )$/;"	f
+disk_read	disk.c	/^void disk_read( struct disk *d, int block, char *data )$/;"	f
+disk_write	disk.c	/^void disk_write( struct disk *d, int block, const char *data )$/;"	f
+fd	disk.c	/^	int fd;$/;"	m	struct:disk	file:
+fd	page_table.c	/^	int fd;$/;"	m	struct:page_table	file:
+fifo_fault_handler	main.c	/^void fifo_fault_handler( struct page_table *pt, int page)$/;"	f
+fifoq	main.c	/^FifoQueue *fifoq;$/;"	v
+focus_program	program.c	/^void focus_program( char *data, int length )$/;"	f
+front	main.c	/^    struct FifoNode *front, *rear;$/;"	m	struct:FifoQueue	typeref:struct:FifoQueue::FifoNode	file:
+handler	page_table.c	/^	page_fault_handler_t handler;$/;"	m	struct:page_table	file:
+internal_fault_handler	page_table.c	/^static void internal_fault_handler( int signum, siginfo_t *info, void *context )$/;"	f	file:
+main	main.c	/^int main( int argc, char *argv[] )$/;"	f
+nblocks	disk.c	/^	int nblocks;$/;"	m	struct:disk	file:
+next	main.c	/^    struct FifoNode *next;$/;"	m	struct:FifoNode	typeref:struct:FifoNode::FifoNode	file:
+nframes	page_table.c	/^	int nframes;$/;"	m	struct:page_table	file:
+npages	page_table.c	/^	int npages;$/;"	m	struct:page_table	file:
+page_bits	page_table.c	/^	int *page_bits;$/;"	m	struct:page_table	file:
+page_fault_handler	main.c	/^void page_fault_handler( struct page_table *pt, int page )$/;"	f
+page_mapping	page_table.c	/^	int *page_mapping;$/;"	m	struct:page_table	file:
+page_table	page_table.c	/^struct page_table {$/;"	s	file:
+page_table_create	page_table.c	/^struct page_table * page_table_create( int npages, int nframes, page_fault_handler_t handler )$/;"	f
+page_table_delete	page_table.c	/^void page_table_delete( struct page_table *pt )$/;"	f
+page_table_get_entry	page_table.c	/^void page_table_get_entry( struct page_table *pt, int page, int *frame, int *bits )$/;"	f
+page_table_get_nframes	page_table.c	/^int page_table_get_nframes( struct page_table *pt )$/;"	f
+page_table_get_npages	page_table.c	/^int page_table_get_npages( struct page_table *pt )$/;"	f
+page_table_get_physmem	page_table.c	/^char * page_table_get_physmem( struct page_table *pt )$/;"	f
+page_table_get_virtmem	page_table.c	/^char * page_table_get_virtmem( struct page_table *pt )$/;"	f
+page_table_print	page_table.c	/^void page_table_print( struct page_table *pt )$/;"	f
+page_table_print_entry	page_table.c	/^void page_table_print_entry( struct page_table *pt, int page )$/;"	f
+page_table_set_entry	page_table.c	/^void page_table_set_entry( struct page_table *pt, int page, int frame, int bits )$/;"	f
+physmem	main.c	/^char *physmem = NULL;$/;"	v
+physmem	page_table.c	/^	char *physmem;$/;"	m	struct:page_table	file:
+pop_fifo	main.c	/^int pop_fifo(void)$/;"	f
+push_fifo	main.c	/^void push_fifo(int page)$/;"	f
+rear	main.c	/^    struct FifoNode *front, *rear;$/;"	m	struct:FifoQueue	typeref:struct:FifoQueue::	file:
+scan_program	program.c	/^void scan_program( char *cdata, int length )$/;"	f
+setup_fifo	main.c	/^void setup_fifo(int cap)$/;"	f
+size	main.c	/^    int size;$/;"	m	struct:FifoQueue	file:
+sort_program	program.c	/^void sort_program( char *data, int length )$/;"	f
+the_page_table	page_table.c	/^struct page_table *the_page_table = 0;$/;"	v	typeref:struct:page_table
+virtmem	page_table.c	/^	char *virtmem;$/;"	m	struct:page_table	file:
