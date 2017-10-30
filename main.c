@@ -20,8 +20,12 @@ how to use the page table and disk interfaces.
 struct disk *disk = NULL;
 char *physmem = NULL;
 
+/* Option has provided by user on arguments */
+
+int UserOption;
 
 /****************FIFO IMPL********************/
+
 typedef struct FifoNode
 {
     int data;
@@ -81,6 +85,93 @@ void fifo_fault_handler( struct page_table *pt, int page)
     page_table_set_entry(pt,page,frame,bits);
 }
 
+int *MemArray;
+
+/* Returns a key position within our mem map */
+
+int PageFind(int begin, int end, int key) 
+{
+    int i;
+    
+    for(i = begin; i <= end; i++) 
+    {
+          if (MemArray[i] == key)
+          {
+              return i;
+          }
+    }
+    
+    return -1;
+}
+
+
+/* Handles random faults */
+
+void random_fault_handler(struct page_table *pt, int page)
+{
+       /* Page faults */
+
+       int Faults = 0;     
+       
+       /* Disk writes */
+       
+       int Writes = 0;     
+       
+       /* Disk reads */
+       
+       int Reads = 0;
+       
+       /* Counter */ 
+       
+       int counter = 0; 
+       
+       int no_pages = page_table_get_npages(pt);
+
+       int no_frames = page_table_get_nframes(pt);
+
+       physmem = page_table_get_physmem(pt);
+
+       Faults++;
+       
+       int result = PageFind(0, no_frames-1, page);
+       int temp = lrand48() % no_frames;
+       
+       if (result > -1) 
+       {
+                page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
+
+                Faults--;
+       }
+       else if (counter < no_frames) 
+       {
+                while (MemArray[temp] != -1) 
+                {
+                    temp = lrand48() % no_frames;
+                    Faults++;
+                }
+                
+                page_table_set_entry(pt, page, temp, PROT_READ);
+                disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
+
+                Reads++;
+                MemArray[temp] = page;
+                counter++;
+       } 
+       else 
+       {
+                disk_write(disk, MemArray[temp], &physmem[temp * PAGE_SIZE]);
+                disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
+                page_table_set_entry(pt, page, temp, PROT_READ);
+
+                Writes++;
+                Reads++;
+                MemArray[temp] = page;
+       }
+       
+        page_table_print(pt);
+}
+
+
 /******************END FIFO IMPL*************/
 
 void page_fault_handler( struct page_table *pt, int page )
@@ -90,9 +181,10 @@ void page_fault_handler( struct page_table *pt, int page )
     page_table_print(pt);
 }
 
-int main( int argc, char *argv[] )
+int main(int argc, char *argv[])
 {
-	if(argc!=5) {
+	if (argc != 5) 
+	{
 		printf("use: virtmem <npages> <nframes> <rand|fifo|custom> <sort|scan|focus>\n");
 		return 1;
 	}
@@ -100,9 +192,43 @@ int main( int argc, char *argv[] )
 	int npages = atoi(argv[1]);
 	int nframes = atoi(argv[2]);
 
-    setup_fifo(nframes);
+        setup_fifo(nframes);
 
-	const char *program = argv[4];
+        MemArray = (int *)malloc(nframes * sizeof(int));
+        int i;
+
+        for (i = 0; i < nframes; i++)
+        {
+                MemArray[i] = -1;
+        }
+        
+        /* Checks options provided */
+        
+        if (!strcmp(argv[3], "rand"))
+        {
+            UserOption = 1;
+        }
+        else if (!strcmp(argv[3], "fifo"))
+        {
+            UserOption = 2;
+        }
+        else
+        {
+            UserOption = 3;
+        }
+        
+        const char *program = argv[4];
+
+        if(npages < 3) {
+                printf("Your page count is too small. The minimum number of page required is 3.\n");
+                return 1;
+        }
+
+        if(nframes < 3) {
+                printf("Your frame count is too small. The minimum number of frames required is 3.\n");
+                return 1;
+        }
+
 
 	disk = disk_open("myvirtualdisk",npages);
 	if(!disk) {
@@ -110,9 +236,30 @@ int main( int argc, char *argv[] )
 		return 1;
 	}
 
-	// struct page_table *pt = page_table_create( npages, nframes, page_fault_handler );
-	struct page_table *pt = page_table_create( npages, nframes, fifo_fault_handler);
-	if(!pt) {
+	struct page_table *pt = NULL;
+	
+	/* Handles FIFO */
+	
+	if (UserOption == 2)
+	{
+  	       pt = page_table_create( npages, nframes, fifo_fault_handler);
+        }
+        
+        /* Handles Random */
+        
+        else if (UserOption == 1)
+        {
+               pt = page_table_create( npages, nframes, random_fault_handler);
+        }
+	
+	else
+	{
+ 	      printf("Unknown option!: %d\n", UserOption);
+ 	      exit(0);
+	}
+	
+	if(!pt) 
+	{
 		fprintf(stderr,"couldn't create page table: %s\n",strerror(errno));
 		return 1;
 	}
