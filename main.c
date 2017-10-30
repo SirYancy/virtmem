@@ -22,7 +22,7 @@ char *physmem = NULL;
 
 /* Option has provided by user on arguments */
 
-int UserOption;
+int UserOption = 0;
 
 /* Page faults */
 
@@ -104,23 +104,6 @@ void fifo_fault_handler( struct page_table *pt, int page)
     page_table_set_entry(pt,page,frame,bits);
 }
 
-/* Returns a key position within our mem map */
-
-int PageFind(int begin, int end, int key) 
-{
-    int i;
-    
-    for(i = begin; i <= end; i++) 
-    {
-          if (MemArray[i] == key)
-          {
-              return i;
-          }
-    }
-    
-    return -1;
-}
-
 
 /* Handles random faults */
 
@@ -138,12 +121,11 @@ void random_fault_handler(struct page_table *pt, int page)
 
        Faults++;
        
-       int result = PageFind(0, no_frames-1, page);
        int temp = lrand48() % no_frames;
        
-       if (result > -1) 
+       if (frame > -1) 
        {
-                page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
+                page_table_set_entry(pt, page, frame, PROT_READ|PROT_WRITE);
 
                 Faults--;
        }
