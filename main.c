@@ -15,11 +15,20 @@ how to use the page table and disk interfaces.
 #include <string.h>
 #include <errno.h>
 
-#define check_bit(var,pos) ((var) & (1 << (pos)))
-
 struct disk *disk = NULL;
 char *physmem = NULL;
 
+/* User arguments */
+int UserOption = 0;
+
+/* Page Faults */
+static int Faults = 0;
+
+/* Disk Writes */
+static int Writes = 0;
+
+/* Disk Reads */
+static int Reads = 0;
 
 /****************FIFO IMPL********************/
 typedef struct FifoNode
@@ -43,6 +52,8 @@ int pop_fifo(void);
 
 void fifo_fault_handler( struct page_table *pt, int page)
 {
+    // Increment page fault counter;
+    Faults++;
     printf("FIFO page fault on page #%d\n",page);
 
     int frame, bits;
@@ -51,10 +62,12 @@ void fifo_fault_handler( struct page_table *pt, int page)
     // if this page is not in memory
     if(!bits&PROT_READ)
     {
+        Reads++;
         // If not all frames are being used
         if(fifoq->size < fifoq->capacity)
         {
             frame = fifoq->size;
+            disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
         }
         else
         {
@@ -76,6 +89,7 @@ void fifo_fault_handler( struct page_table *pt, int page)
     // else, make it dirty
     else
     {
+        Writes++;
         bits = PROT_READ|PROT_WRITE;
     }
     page_table_set_entry(pt,page,frame,bits);
@@ -135,6 +149,8 @@ int main( int argc, char *argv[] )
 		fprintf(stderr,"unknown program: %s\n",argv[3]);
 
 	}
+
+    printf("Results: %d Page faults, %d Writes, %d Reads\n", Faults, Writes, Reads);
 
 	page_table_delete(pt);
 	disk_close(disk);
