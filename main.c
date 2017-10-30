@@ -60,7 +60,11 @@ typedef struct FifoQueue
 FifoQueue *fifoq;
 
 void setup_fifo(int cap);
+
+/* MemArray's memory allocation. Used at starting time. */
+
 void setup_random(int cap);
+
 void push_fifo(int page);
 int pop_fifo(void);
 
