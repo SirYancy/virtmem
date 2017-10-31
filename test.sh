@@ -2,5 +2,5 @@
 
 for i in $(seq 5 5 100)
 do
-    ./virtmem 100 $i fifo sort
+    ./virtmem 100 $i rand focus
 done

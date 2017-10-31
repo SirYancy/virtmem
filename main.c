@@ -136,7 +136,6 @@ int FindPage(int begin, int end, int key)
 
 void random_fault_handler(struct page_table *pt, int page)
 {
-    printf("RANDOM page fault on page #%d\n",page);
 
     int TotalPages = page_table_get_npages(pt);
     int TotalFrames = page_table_get_nframes(pt);
