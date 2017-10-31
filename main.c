@@ -118,22 +118,22 @@ void fifo_fault_handler( struct page_table *pt, int page)
     }
     page_table_set_entry(pt,page,frame,bits);
     
-    fprintf(Output, "%d, %d, %d", Reads, Faults, Writes);
+    fprintf(Output, "%d, %d", frame, Faults);
 
 }
 
 
 int FindPage(int begin, int end, int key) 
 {
-    for (unsigned i = begin; i <= end; i++) 
-    {
-          if (MemArray[i] == key)
-          {
-               return i;
-          }  
-    }
+      for (unsigned i = begin; i <= end; i++) 
+      {
+            if (MemArray[i] == key)
+            {
+                 return i;
+            }  
+      }
     
-    return -1;
+      return -1;
 }
 
 
@@ -196,7 +196,7 @@ void random_fault_handler(struct page_table *pt, int page)
        }
        
        //page_table_print(pt);
-       fprintf(Output, "%d, %d, %d", Reads, Faults, Writes);
+       fprintf(Output, "%d, %d", TotalFrames, Faults);
 }
 
 
@@ -204,9 +204,9 @@ void random_fault_handler(struct page_table *pt, int page)
 
 void page_fault_handler( struct page_table *pt, int page )
 {
-	printf("page fault on page #%d\n",page);
-    page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
-    page_table_print(pt);
+     printf("page fault on page #%d\n",page);
+     page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
+     page_table_print(pt);
 }
 
 int main(int argc, char *argv[])
