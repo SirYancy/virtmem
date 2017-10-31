@@ -20,6 +20,11 @@ how to use the page table and disk interfaces.
 struct disk *disk = NULL;
 char *physmem = NULL;
 
+/* Handles appending file */
+
+FILE *Output = NULL;
+
+
 /* Option has provided by user on arguments */
 
 int UserOption = 0;
@@ -68,8 +73,11 @@ void setup_random(int cap);
 void push_fifo(int page);
 int pop_fifo(void);
 
+
 void fifo_fault_handler( struct page_table *pt, int page)
 {
+    // Increment page fault counter;
+    Faults++;
     printf("FIFO page fault on page #%d\n",page);
 
     int frame, bits;
@@ -78,10 +86,12 @@ void fifo_fault_handler( struct page_table *pt, int page)
     // if this page is not in memory
     if(!bits&PROT_READ)
     {
+        Reads++;
         // If not all frames are being used
         if(fifoq->size < fifoq->capacity)
         {
             frame = fifoq->size;
+            disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
         }
         else
         {
@@ -103,9 +113,27 @@ void fifo_fault_handler( struct page_table *pt, int page)
     // else, make it dirty
     else
     {
+        Writes++;
         bits = PROT_READ|PROT_WRITE;
     }
     page_table_set_entry(pt,page,frame,bits);
+    
+    fprintf(Output, "%d, %d, %d", Reads, Faults, Writes);
+
+}
+
+
+int FindPage(int begin, int end, int key) 
+{
+    for (unsigned i = begin; i <= end; i++) 
+    {
+          if (MemArray[i] == key)
+          {
+               return i;
+          }  
+    }
+    
+    return -1;
 }
 
 
@@ -113,59 +141,62 @@ void fifo_fault_handler( struct page_table *pt, int page)
 
 void random_fault_handler(struct page_table *pt, int page)
 {
-       int bits, frame;
+    printf("RANDOM page fault on page #%d\n",page);
+
+    int TotalPages = page_table_get_npages(pt);
+    int TotalFrames = page_table_get_nframes(pt);
+    char *physmem = page_table_get_physmem(pt);
+
+    if (TotalFrames >= TotalPages) 
+    {
+            page_table_set_entry(pt, page, page, PROT_READ|PROT_WRITE);
+            Faults++;
+            Writes = 0;
+            Reads = 0;
+      }
+      else
+      {
+            int TotalFrames = page_table_get_nframes(pt);
+            physmem = page_table_get_physmem(pt);
+            Faults++;
        
-       page_table_get_entry(pt, page, &frame, &bits);
-
-       //int no_pages = page_table_get_npages(pt);
-
-       int no_frames = page_table_get_nframes(pt);
-
-       physmem = page_table_get_physmem(pt);
-
-       Faults++;
+            int result = FindPage(0, TotalFrames-1, page);
+            int temp = lrand48() % TotalFrames;
        
-       int temp = lrand48() % no_frames;
-       
-       if (frame > -1) 
-       {
-                page_table_set_entry(pt, page, frame, PROT_READ|PROT_WRITE);
-
-                Faults--;
-       }
-       else if (counter < no_frames) 
-       {
-                while (MemArray[temp] != -1) 
-                {
-                    temp = lrand48() % no_frames;
-                    Faults++;
-                }
+            if (result > -1) 
+            {
+                   page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
+                   Faults--;
+            }
+            else if (counter < TotalFrames) 
+            {
+                   while (MemArray[temp] != -1) 
+                   {
+                       temp = lrand48() % TotalFrames;
+                       Faults++;
+                   }
                 
-                page_table_set_entry(pt, page, temp, PROT_READ);
-                disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
+                   page_table_set_entry(pt, page, temp, PROT_READ);
+                   disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
 
-                Reads++;
-                MemArray[temp] = page;
-                counter++;
-       } 
-       else 
-       {
-                if (!bits&PROT_READ)
-                {
-                      disk_write(disk, MemArray[temp], &physmem[temp * PAGE_SIZE]);
-                      Writes++;
-                }
-                
-                disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
-                bits = PROT_READ;
-
-                page_table_set_entry(pt, page, temp, PROT_READ);
-
-                Reads++;
-                MemArray[temp] = page;
+                   Reads++;
+                   MemArray[temp] = page;
+                   counter++;
+            } 
+            else 
+            {
+                   disk_write(disk, MemArray[temp], &physmem[temp * PAGE_SIZE]);
+                   disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
+                   page_table_set_entry(pt, page, temp, PROT_READ);
+                   Writes++;
+                   Reads++;
+                   MemArray[temp] = page;
+            }
+       
        }
        
-        page_table_print(pt);
+       //page_table_print(pt);
+       fprintf(Output, "%d, %d, %d", Reads, Faults, Writes);
 }
 
 
@@ -220,9 +251,12 @@ int main(int argc, char *argv[])
                 return 1;
         }
 
+        Output = fopen("results.txt", "w+");
 
 	disk = disk_open("myvirtualdisk",npages);
-	if(!disk) {
+
+	if (!disk) 
+	{
 		fprintf(stderr,"couldn't create virtual disk: %s\n",strerror(errno));
 		return 1;
 	}
@@ -273,6 +307,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"unknown program: %s\n",argv[3]);
 
 	}
+
+	
+        fclose(Output);
 
 	page_table_delete(pt);
 	disk_close(disk);
