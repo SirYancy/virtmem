@@ -18,19 +18,34 @@ how to use the page table and disk interfaces.
 struct disk *disk = NULL;
 char *physmem = NULL;
 
-/* User arguments */
+/* Handles appending file */
+
+FILE *Output = NULL;
+
+/* Option has provided by user on arguments */
+
 int UserOption = 0;
 
-/* Page Faults */
+/* Page faults */
+
 static int Faults = 0;
 
-/* Disk Writes */
+/* Disk writes */
+
 static int Writes = 0;
 
-/* Disk Reads */
+/* Disk reads */
+
 static int Reads = 0;
 
+/* Counter */ 
+
+static int counter = 0; 
+
+int *MemArray;
+
 /****************FIFO IMPL********************/
+
 typedef struct FifoNode
 {
     int data;
@@ -47,8 +62,14 @@ typedef struct FifoQueue
 FifoQueue *fifoq;
 
 void setup_fifo(int cap);
+
+/* MemArray's memory allocation. Used at starting time. */
+
+void setup_random(int cap);
+
 void push_fifo(int page);
 int pop_fifo(void);
+
 
 void fifo_fault_handler( struct page_table *pt, int page)
 {
@@ -93,40 +114,174 @@ void fifo_fault_handler( struct page_table *pt, int page)
         bits = PROT_READ|PROT_WRITE;
     }
     page_table_set_entry(pt,page,frame,bits);
+    
+    fprintf(Output, "%d, %d", frame, Faults);
+
 }
+
+
+int FindPage(int begin, int end, int key) 
+{
+      for (unsigned i = begin; i <= end; i++) 
+      {
+            if (MemArray[i] == key)
+            {
+                 return i;
+            }  
+      }
+    
+      return -1;
+}
+
+
+/* Handles random faults */
+
+void random_fault_handler(struct page_table *pt, int page)
+{
+    printf("RANDOM page fault on page #%d\n",page);
+
+    int TotalPages = page_table_get_npages(pt);
+    int TotalFrames = page_table_get_nframes(pt);
+    char *physmem = page_table_get_physmem(pt);
+
+    if (TotalFrames >= TotalPages) 
+    {
+            page_table_set_entry(pt, page, page, PROT_READ|PROT_WRITE);
+            Faults++;
+            Writes = 0;
+            Reads = 0;
+      }
+      else
+      {
+            int TotalFrames = page_table_get_nframes(pt);
+            physmem = page_table_get_physmem(pt);
+            Faults++;
+       
+            int result = FindPage(0, TotalFrames-1, page);
+            int temp = lrand48() % TotalFrames;
+       
+            if (result > -1) 
+            {
+                   page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
+                   Faults--;
+            }
+            else if (counter < TotalFrames) 
+            {
+                   while (MemArray[temp] != -1) 
+                   {
+                       temp = lrand48() % TotalFrames;
+                       Faults++;
+                   }
+                
+                   page_table_set_entry(pt, page, temp, PROT_READ);
+                   disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
+
+                   Reads++;
+                   MemArray[temp] = page;
+                   counter++;
+            } 
+            else 
+            {
+                   disk_write(disk, MemArray[temp], &physmem[temp * PAGE_SIZE]);
+                   disk_read(disk, page, &physmem[temp * PAGE_SIZE]);
+                   page_table_set_entry(pt, page, temp, PROT_READ);
+                   Writes++;
+                   Reads++;
+                   MemArray[temp] = page;
+            }
+       
+       }
+       
+       //page_table_print(pt);
+       fprintf(Output, "%d, %d", TotalFrames, Faults);
+}
+
 
 /******************END FIFO IMPL*************/
 
 void page_fault_handler( struct page_table *pt, int page )
 {
-	printf("page fault on page #%d\n",page);
-    page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
-    page_table_print(pt);
+     printf("page fault on page #%d\n",page);
+     page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
+     page_table_print(pt);
 }
 
-int main( int argc, char *argv[] )
+int main(int argc, char *argv[])
 {
-	if(argc!=5) {
+	if (argc != 5) 
+	{
 		printf("use: virtmem <npages> <nframes> <rand|fifo|custom> <sort|scan|focus>\n");
 		return 1;
 	}
 
 	int npages = atoi(argv[1]);
 	int nframes = atoi(argv[2]);
+        
+        /* Checks options provided */
+        
+        if (!strcmp(argv[3], "rand"))
+        {
+               setup_random(nframes);
+               UserOption = 1;
+        }
+        else if (!strcmp(argv[3], "fifo"))
+        {
+               setup_fifo(nframes);
+               UserOption = 2;
+        }
+        else
+        {
+               UserOption = 3;
+        }
+        
+        const char *program = argv[4];
 
-    setup_fifo(nframes);
+        if (npages < 3) 
+        {
+                printf("Your page count is too small. The minimum number of page required is 3.\n");
+                return 1;
+        }
 
-	const char *program = argv[4];
+        if (nframes < 3) 
+        {
+                printf("Your frame count is too small. The minimum number of frames required is 3.\n");
+                return 1;
+        }
+
+        Output = fopen("results.txt", "w+");
 
 	disk = disk_open("myvirtualdisk",npages);
-	if(!disk) {
+
+	if (!disk) 
+	{
 		fprintf(stderr,"couldn't create virtual disk: %s\n",strerror(errno));
 		return 1;
 	}
 
-	// struct page_table *pt = page_table_create( npages, nframes, page_fault_handler );
-	struct page_table *pt = page_table_create( npages, nframes, fifo_fault_handler);
-	if(!pt) {
+	struct page_table *pt = NULL;
+	
+	/* Handles FIFO */
+	
+	if (UserOption == 2)
+	{
+  	       pt = page_table_create( npages, nframes, fifo_fault_handler);
+        }
+        
+        /* Handles Random */
+        
+        else if (UserOption == 1)
+        {
+               pt = page_table_create( npages, nframes, random_fault_handler);
+        }
+	
+	else
+	{
+ 	      printf("Unknown option!: %d\n", UserOption);
+ 	      exit(0);
+	}
+	
+	if(!pt) 
+	{
 		fprintf(stderr,"couldn't create page table: %s\n",strerror(errno));
 		return 1;
 	}
@@ -150,12 +305,22 @@ int main( int argc, char *argv[] )
 
 	}
 
-    printf("Results: %d Page faults, %d Writes, %d Reads\n", Faults, Writes, Reads);
+    fclose(Output);
 
 	page_table_delete(pt);
 	disk_close(disk);
 
 	return 0;
+}
+
+void setup_random(int cap)
+{
+      MemArray = (int *)malloc(cap * sizeof(int));
+
+      for (unsigned i = 0; i < cap; i++)
+      {
+          MemArray[i] = -1;
+      }
 }
 
 void setup_fifo(int cap)
