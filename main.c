@@ -49,7 +49,6 @@ static int Reads = 0;
 static int counter = 0; 
 
 int *MemArray;
-int *PlusArray;
 /* Fifo implementation */
 
 typedef struct FifoNode
@@ -302,7 +301,8 @@ int main(int argc, char *argv[])
     }
     else if (!strcmp(argv[3], "custom"))
     {
-        setup_plus(nframes);
+        setup_mem_array(nframes);
+        setup_fifo(nframes-1);
         UserOption = 3;
     }
 
@@ -405,16 +405,6 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void setup_plus(int cap){
-    MemArray = (int *)malloc(cap * sizeof(int));
-    PlusArray = (int *)malloc(cap * sizeof(int));
-    for (unsigned i = 0; i < cap; i++)
-    {
-        MemArray[i] = -1;
-	PlusArray[i] = -1;
-    }
-    setup_fifo(cap-1);
-}
 void setup_mem_array(int cap)
 {
     MemArray = (int *)malloc(cap * sizeof(int));
