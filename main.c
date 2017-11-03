@@ -1,7 +1,6 @@
 /*
    Main program for the virtual memory project.
-   Make all of your modifications to this file.
-   You may add or rearrange any code or data as you need.
+   Make all of your modifications to this file.  You may add or rearrange any code or data as you need.
    The header files page_table.h and disk.h explain
    how to use the page table and disk interfaces.
    */
@@ -14,7 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
- 
+#include <time.h>
+
 typedef enum { false, true } bool;  
 static int TotalPages = 0;
 
@@ -49,6 +49,7 @@ static int Reads = 0;
 static int counter = 0; 
 
 int *MemArray;
+
 /* Fifo implementation */
 
 typedef struct FifoNode
@@ -138,137 +139,116 @@ int FindPage(int* arr, int size, int key)
 
 void FrameworkSetup(struct page_table *pt)
 {
-     TotalPages = page_table_get_npages(pt);
-     TotalFrames = page_table_get_nframes(pt);
-     physmem = page_table_get_physmem(pt);
+    TotalPages = page_table_get_npages(pt);
+    TotalFrames = page_table_get_nframes(pt);
+    physmem = page_table_get_physmem(pt);
 }
 
 /* Handles random faults */
 
 void random_fault_handler(struct page_table *pt, int page)
 {
+    Faults++;
 
-    FrameworkSetup(pt);
+    int frame, bits;
+    page_table_get_entry(pt, page, &frame, &bits);
 
-    if (TotalFrames >= TotalPages) 
+    // If page is not in memory
+    if(!bits&PROT_READ)
     {
-        page_table_set_entry(pt, page, page, PROT_READ|PROT_WRITE);
-        Faults++;
-        Writes = 0;
-        Reads = 0;
+        Reads++;
+        // If we still have unallocated frames
+        if(counter < TotalFrames)
+        {
+            MemArray[counter] = page;
+            counter++;
+            disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
+        }
+        else
+        {
+            int out_page = rand() % TotalFrames;
+            int out_frame, out_bits;
+            page_table_get_entry(pt, out_page, &out_frame, &out_bits);
+            if(out_bits&PROT_WRITE)
+            {
+                disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
+                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
+            }
+            page_table_set_entry(pt, out_page, 0, 0);
+            frame = out_frame;
+            bits = PROT_READ;
+            int mem = FindPage(MemArray, TotalFrames, out_page);
+            MemArray[mem] = page;
+        }
+        bits = PROT_READ;
     }
     else
     {
-        physmem = page_table_get_physmem(pt);
-        Faults++;
-
-        int result = FindPage(MemArray, TotalFrames, page);
-        int aux = lrand48() % TotalFrames;
-
-        if (result > -1) 
-        {
-            page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
-            Faults--;
-        }
-        else if (counter < TotalFrames) 
-        {
-            while (MemArray[aux] != -1) 
-            {
-                aux = lrand48() % TotalFrames;
-                Faults++;
-            }
-
-            page_table_set_entry(pt, page, aux, PROT_READ);
-            disk_read(disk, page, &physmem[aux * PAGE_SIZE]);
-
-            Reads++;
-            MemArray[aux] = page;
-            counter++;
-        } 
-        else 
-        {
-            disk_write(disk, MemArray[aux], &physmem[aux * PAGE_SIZE]);
-            disk_read(disk, page, &physmem[aux * PAGE_SIZE]);
-            page_table_set_entry(pt, page, aux, PROT_READ);
-            Writes++;
-            Reads++;
-            MemArray[aux] = page;
-        }
-
+        Writes++;
+        bits = PROT_READ|PROT_WRITE;
     }
-
+    page_table_set_entry(pt,page,frame,bits);
 }
+
 void random_plus_fault_handler(struct page_table *pt, int page)
 {
 
     FrameworkSetup(pt);
 
-    if (TotalFrames >= TotalPages) 
+    physmem = page_table_get_physmem(pt);
+    Faults++;
+
+    int result = FindPage(MemArray, TotalFrames, page);
+
+    if (result > -1) 
     {
-        page_table_set_entry(pt, page, page, PROT_READ|PROT_WRITE);
-        Faults++;
-        Writes = 0;
-        Reads = 0;
+        page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
     }
-    else
+    else if (counter < TotalFrames) 
     {
-        physmem = page_table_get_physmem(pt);
-        Faults++;
 
-        int result = FindPage(MemArray, TotalFrames, page);
+        page_table_set_entry(pt, page, counter, PROT_READ);
+        disk_read(disk, page, &physmem[counter * PAGE_SIZE]);
 
-        if (result > -1) 
-        {
-            page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
-            Faults--;
-        }
-        else if (counter < TotalFrames) 
-        {
-
-            page_table_set_entry(pt, page, counter, PROT_READ);
-            disk_read(disk, page, &physmem[counter * PAGE_SIZE]);
-
-            MemArray[counter] = page; 
-            Reads++;
-            counter++;
-        } 
-        else 
-        {
-            bool found_not_recent = false;
-            int aux = lrand48() % TotalFrames;
-	    while(!found_not_recent){
-	    	if(queueContains(fifoq, page)){
-			aux = lrand48() % TotalFrames;				
-		}
-		else
-		{
-			if(fifoq->size < fifoq->capacity)
-       			{
-       			}
-        		else
-        		{
-            		   pop_fifo();
-			}
-       			push_fifo(page);
-			found_not_recent = true;
-	        }
+        MemArray[counter] = page; 
+        Reads++;
+        counter++;
+    } 
+    else 
+    {
+        bool found_not_recent = false;
+        int aux = lrand48() % TotalFrames;
+        while(!found_not_recent){
+            if(queueContains(fifoq, page)){
+                aux = lrand48() % TotalFrames;				
+            }
+            else
+            {
+                if(fifoq->size < fifoq->capacity)
+                {
+                }
+                else
+                {
+                    pop_fifo();
+                }
+                push_fifo(page);
+                found_not_recent = true;
+            }
             MemArray[aux] = page;
-	    disk_write(disk, MemArray[aux], &physmem[aux * PAGE_SIZE]);
+            disk_write(disk, MemArray[aux], &physmem[aux * PAGE_SIZE]);
             disk_read(disk, page, &physmem[aux * PAGE_SIZE]);
             page_table_set_entry(pt, page, aux, PROT_READ);
             Writes++;
             Reads++;
-            }
         }
-
     }
+
 
 }
 
-
-
-/******************END FIFO IMPL*************/
-
+/*
+ * Naive page fault handler
+ */
 void page_fault_handler( struct page_table *pt, int page )
 {
     printf("page fault on page #%d\n",page);
@@ -348,18 +328,21 @@ int main(int argc, char *argv[])
 
     if (UserOption == 2)
     {
-            pt = page_table_create( npages, nframes, fifo_fault_handler);
+        pt = page_table_create( npages, nframes, fifo_fault_handler);
     }
 
     /* Handles Random */
 
     else if (UserOption == 1)
     {
-            pt = page_table_create( npages, nframes, random_fault_handler);
+        pt = page_table_create( npages, nframes, random_fault_handler);
+        FrameworkSetup(pt);
+        // Set up RNG
+        srand(time(NULL));
     }
     else if (UserOption == 3)
     {
-            pt = page_table_create( npages, nframes, random_plus_fault_handler);
+        pt = page_table_create( npages, nframes, random_plus_fault_handler);
     }
 
     else
@@ -457,7 +440,7 @@ bool queueContains(FifoQueue *queue, int page){
         while(node != NULL){
             if(node->data == page){
                 //break if node is found
-		printf("node found\n");
+                printf("node found\n");
                 return true;
             }
             if(node == queue->rear){
