@@ -1,6 +1,7 @@
 /*
    Main program for the virtual memory project.
-   Make all of your modifications to this file.  You may add or rearrange any code or data as you need.
+   Make all of your modifications to this file.  
+   You may add or rearrange any code or data as you need.
    The header files page_table.h and disk.h explain
    how to use the page table and disk interfaces.
    */
@@ -267,6 +268,8 @@ int main(int argc, char *argv[])
     int npages = atoi(argv[1]);
     int nframes = atoi(argv[2]);
 
+    char *outputFile;
+
     /* Checks options provided */
 
     if (!strcmp(argv[3], "rand"))
@@ -301,18 +304,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    Output = fopen("results.csv", "a");
-
-    if(NULL != Output)
-    {
-        fseek(Output, 0, SEEK_END);
-        int size = ftell(Output);
-
-        if (size == 0)
-        {
-            fprintf(Output, "Frames, Pages, Faults, Reads, Writes\n");
-        }
-    }
 
     disk = disk_open("myvirtualdisk",npages);
 
@@ -364,16 +355,32 @@ int main(int argc, char *argv[])
 
     if(!strcmp(program,"sort")) {
         sort_program(virtmem,npages*PAGE_SIZE);
+        outputFile = "sort_results.csv";
 
     } else if(!strcmp(program,"scan")) {
         scan_program(virtmem,npages*PAGE_SIZE);
+        outputFile = "scan_results.csv";
 
     } else if(!strcmp(program,"focus")) {
         focus_program(virtmem,npages*PAGE_SIZE);
+        outputFile = "focus_results.csv";
 
     } else {
         fprintf(stderr,"unknown program: %s\n",argv[3]);
 
+    }
+
+    Output = fopen(outputFile, "a");
+
+    if(NULL != Output)
+    {
+        fseek(Output, 0, SEEK_END);
+        int size = ftell(Output);
+
+        if (size == 0)
+        {
+            fprintf(Output, "Frames, Pages, Faults, Reads, Writes\n");
+        }
     }
 
     printf("\nFrames: %d, Pages: %d, Faults: %d, Reads: %d, Writes: %d\n", nframes, npages, Faults, Reads, Writes);

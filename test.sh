@@ -1,8 +1,20 @@
 #!/bin/bash
 
-rm -f results.csv
+rm -f *results.csv
+
+algorithm=custom
 
 for i in $(seq 5 5 100)
 do
-    ./virtmem 100 $i custom sort
+    ./virtmem 100 $i $algorithm sort
+done
+
+for i in $(seq 5 5 100)
+do
+    ./virtmem 100 $i $algorithm scan
+done
+
+for i in $(seq 5 5 100)
+do
+    ./virtmem 100 $i $algorithm focus
 done
