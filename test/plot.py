@@ -24,7 +24,6 @@ r = ax.plot(columns["Frames"], columns["Reads"],'o-', label="Reads")
 w = ax.plot(columns["Frames"], columns["Writes"],'o-', label="Writes")
 
 ax.xaxis.set_ticks(np.arange(0,105,5))
-ax.legend()
 ax.set_title(title)
 ax.set_xlabel("Frames")
 
