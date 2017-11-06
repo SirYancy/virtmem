@@ -6,6 +6,7 @@ import numpy as np
 columns = {}
 
 filename = sys.argv[1]
+title = sys.argv[2]
 
 with open(filename, newline='') as csvfile:
     reader = csv.reader(csvfile)
@@ -18,10 +19,13 @@ with open(filename, newline='') as csvfile:
 
 fig, ax = plt.subplots()
 
-f = ax.plot(columns["Frames"], columns["Faults"], 'o-')
-w = ax.plot(columns["Frames"], columns["Writes"],'o-')
-r = ax.plot(columns["Frames"], columns["Reads"],'o-')
+f = ax.plot(columns["Frames"], columns["Faults"], 'o-', label="Faults")
+r = ax.plot(columns["Frames"], columns["Reads"],'o-', label="Reads")
+w = ax.plot(columns["Frames"], columns["Writes"],'o-', label="Writes")
 
 ax.xaxis.set_ticks(np.arange(0,105,5))
+ax.legend()
+ax.set_title(title)
+ax.set_xlabel("Frames")
 
 plt.savefig(filename.split('.')[0] + '.png')
