@@ -69,6 +69,7 @@ bool queueContains(FifoQueue *queue, int page);
 void setup_plus(int cap);
 void setup_mem_array(int cap);
 
+int cust_get_frame(struct page_table *pt);
 
 void fifo_fault_handler( struct page_table *pt, int page)
 {
@@ -140,6 +141,56 @@ void FrameworkSetup(struct page_table *pt)
     TotalPages = page_table_get_npages(pt);
     TotalFrames = page_table_get_nframes(pt);
     physmem = page_table_get_physmem(pt);
+}
+
+
+/* Custom Fault Handler*/
+void cust_fault_handler(struct page_table *pt, int page)
+{
+    Faults++;
+
+    int frame, bits;
+    page_table_get_entry(pt, page, &frame, &bits);
+
+    // If page is not in memory
+    if(!bits&PROT_READ)
+    {
+        Reads++;
+        // If we still have unallocated frames
+        if(counter < TotalFrames)
+        {
+            MemArray[counter] = page;
+            counter++;
+            disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
+        }
+        else
+        {
+            int out_page = cust_get_frame(pt);
+            int out_frame, out_bits;
+            page_table_get_entry(pt, out_page, &out_frame, &out_bits);
+            if(out_bits&PROT_WRITE)
+            {
+                Writes++;
+                disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
+                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
+            }
+            else
+            {
+                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
+            }
+            page_table_set_entry(pt, out_page, 0, 0);
+            frame = out_frame;
+            bits = PROT_READ;
+            int mem = FindPage(MemArray, TotalFrames, out_page);
+            MemArray[mem] = page;
+        }
+        bits = PROT_READ;
+    }
+    else
+    {
+        bits = PROT_READ|PROT_WRITE;
+    }
+    page_table_set_entry(pt,page,frame,bits);
 }
 
 /* Handles random faults */
@@ -331,9 +382,12 @@ int main(int argc, char *argv[])
         // Set up RNG
         srand(time(NULL));
     }
+    // Custom
     else if (UserOption == 3)
     {
-        pt = page_table_create( npages, nframes, fifo2_fault_handler);
+        pt = page_table_create( npages, nframes, cust_fault_handler);
+        FrameworkSetup(pt);
+        srand(time(NULL));
     }
 
     else
@@ -379,7 +433,7 @@ int main(int argc, char *argv[])
 
         if (size == 0)
         {
-            fprintf(Output, "Frames, Pages, Faults, Reads, Writes\n");
+            fprintf(Output, "Frames,Pages,Faults,Reads,Writes\n");
         }
     }
 
@@ -458,4 +512,23 @@ bool queueContains(FifoQueue *queue, int page){
         }
     }
     return false;
+}
+
+int cust_get_frame(struct page_table *pt)
+{
+    while(1)
+    {
+        int page = MemArray[rand() % TotalFrames];
+        int frame, bits;
+        page_table_get_entry(pt, page, &frame, &bits);
+        if(bits&PROT_EXEC)
+        {
+            bits = PROT_READ|PROT_WRITE;
+            page_table_set_entry(pt, page, frame, bits);
+        }
+        else
+        {
+            return page;
+        }
+    }
 }
