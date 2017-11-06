@@ -33,26 +33,17 @@ FILE *Output = NULL;
 
 int UserOption = 0;
 
-/* Page faults */
-
+/* Fault counters */
 static int Faults = 0;
-
-/* Disk writes */
-
 static int Writes = 0;
-
-/* Disk reads */
-
 static int Reads = 0;
 
-/* Counter */ 
-
+/* counts number of frames occupied (random) */ 
 static int counter = 0; 
 
 int *MemArray;
 
-/* Fifo implementation */
-
+/* FIFO data structures */
 typedef struct FifoNode
 {
     int data;
@@ -70,13 +61,13 @@ FifoQueue *fifoq;
 
 void setup_fifo(int cap);
 
-/* MemArray's memory allocation. Used at starting time. */
-void setup_plus(int cap);
-void setup_mem_array(int cap);
-
 void push_fifo(int page);
 int pop_fifo(void);
 bool queueContains(FifoQueue *queue, int page);
+
+/* set up for random algorithm. */
+void setup_plus(int cap);
+void setup_mem_array(int cap);
 
 
 void fifo_fault_handler( struct page_table *pt, int page)
@@ -91,6 +82,7 @@ void fifo_fault_handler( struct page_table *pt, int page)
     // if this page is not in memory
     if(!bits&PROT_READ)
     {
+        // There will be a read
         Reads++;
         // If not all frames are being used
         if(fifoq->size < fifoq->capacity)
@@ -106,7 +98,13 @@ void fifo_fault_handler( struct page_table *pt, int page)
             // If the current frame is dirty
             if(out_bits&PROT_WRITE)
             {
+                //There will be a write.
+                Writes++;
                 disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
+                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
+            }
+            else
+            {
                 disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             }
             page_table_set_entry(pt, out_page, 0, 0);
@@ -118,7 +116,6 @@ void fifo_fault_handler( struct page_table *pt, int page)
     // else, make it dirty
     else
     {
-        Writes++;
         bits = PROT_READ|PROT_WRITE;
     }
     page_table_set_entry(pt,page,frame,bits);
@@ -146,7 +143,6 @@ void FrameworkSetup(struct page_table *pt)
 }
 
 /* Handles random faults */
-
 void random_fault_handler(struct page_table *pt, int page)
 {
     Faults++;
@@ -172,7 +168,12 @@ void random_fault_handler(struct page_table *pt, int page)
             page_table_get_entry(pt, out_page, &out_frame, &out_bits);
             if(out_bits&PROT_WRITE)
             {
+                Writes++;
                 disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
+                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
+            }
+            else
+            {
                 disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             }
             page_table_set_entry(pt, out_page, 0, 0);
@@ -185,7 +186,6 @@ void random_fault_handler(struct page_table *pt, int page)
     }
     else
     {
-        Writes++;
         bits = PROT_READ|PROT_WRITE;
     }
     page_table_set_entry(pt,page,frame,bits);
@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
     }
     else if (UserOption == 3)
     {
-        pt = page_table_create( npages, nframes, random_plus_fault_handler);
+        pt = page_table_create( npages, nframes, fifo2_fault_handler);
     }
 
     else
