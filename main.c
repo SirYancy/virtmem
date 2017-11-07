@@ -1,10 +1,16 @@
 /*
-   Main program for the virtual memory project.
-   Make all of your modifications to this file.  
-   You may add or rearrange any code or data as you need.
-   The header files page_table.h and disk.h explain
-   how to use the page table and disk interfaces.
-   */
+ * Virtual Memory Simulator Project
+ * Eric Kuha
+ * Carlos Ferry
+ * Jared Willard
+ *
+ * Three page fault handlders with three different
+ * eviction policies.
+ * 1. FIFO, evicts on a first-in-first-out policy
+ * 2. Random, evicts pages completely randomly
+ * 3. Custom, evicts pages on a random, second-chance basis, favoring
+ *      pages that have the dirty bit set.
+ */
 
 #include "page_table.h"
 #include "disk.h"
