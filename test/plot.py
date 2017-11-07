@@ -23,8 +23,10 @@ f = ax.plot(columns["Frames"], columns["Faults"], 'o-', label="Faults")
 r = ax.plot(columns["Frames"], columns["Reads"],'o-', label="Reads")
 w = ax.plot(columns["Frames"], columns["Writes"],'o-', label="Writes")
 
-ax.xaxis.set_ticks(np.arange(0,105,5))
+ax.xaxis.set_ticks(np.arange(0,105,20))
 ax.set_title(title)
 ax.set_xlabel("Frames")
+
+plt.tight_layout()
 
 plt.savefig(filename.split('.')[0] + '.png')
