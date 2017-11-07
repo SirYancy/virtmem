@@ -16,21 +16,20 @@
 #include <errno.h>
 #include <time.h>
 
+/* Handy Bool Typedef */
 typedef enum { false, true } bool;  
-static int TotalPages = 0;
 
+static int TotalPages = 0;
 static int TotalFrames = 0; 
 
+/* Pointers to data structures that the fault handlers need */
 char *physmem = NULL;
-
 struct disk *disk = NULL;
 
 /* Handles appending file */
-
 FILE *Output = NULL;
 
-/* Algo option has provided by user. */
-
+/* Algo option provided by user. */
 int UserOption = 0;
 
 /* Fault counters */
@@ -38,10 +37,10 @@ static int Faults = 0;
 static int Writes = 0;
 static int Reads = 0;
 
-/* counts number of frames occupied (random) */ 
+/* counts number of frames occupied (random/custom) */ 
 static int counter = 0; 
 
-int *MemArray;
+int *FrameArray;
 
 /* FIFO data structures */
 typedef struct FifoNode
@@ -60,23 +59,27 @@ typedef struct FifoQueue
 FifoQueue *fifoq;
 
 void setup_fifo(int cap);
-
 void push_fifo(int page);
 int pop_fifo(void);
-bool queueContains(FifoQueue *queue, int page);
 
 /* set up for random algorithm. */
-void setup_plus(int cap);
-void setup_mem_array(int cap);
+void setup_frame_array(int cap);
 
 int cust_get_frame(struct page_table *pt);
 
+void FrameworkSetup(struct page_table *pt);
+
+/*
+ * FIFO agorithm for handling page faults.
+ * Very basic fault handler which evicts pages based
+ * solely on position in queue.
+ */
 void fifo_fault_handler( struct page_table *pt, int page)
 {
-    // Increment page fault counter;
+    // Increment page fault counter
     Faults++;
-    // printf("FIFO page fault on page #%d\n",page);
 
+    // Get information about the page.
     int frame, bits;
     page_table_get_entry(pt, page, &frame, &bits);
 
@@ -88,26 +91,24 @@ void fifo_fault_handler( struct page_table *pt, int page)
         // If not all frames are being used
         if(fifoq->size < fifoq->capacity)
         {
+            // It will take the next frame in the queue.
             frame = fifoq->size;
             disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
         }
         else
         {
+            // We need to evict the front page in the queue.
             int out_page = pop_fifo();
             int out_frame, out_bits;
             page_table_get_entry(pt, out_page, &out_frame, &out_bits);
-            // If the current frame is dirty
+
+            // If the evicted frame is dirty, write it to the disk
             if(out_bits&PROT_WRITE)
             {
-                //There will be a write.
                 Writes++;
                 disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
-                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             }
-            else
-            {
-                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
-            }
+            disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
         }
@@ -123,6 +124,10 @@ void fifo_fault_handler( struct page_table *pt, int page)
 
 }
 
+/*
+ * FindPage finds a particular page in an array
+ * Used by Custom and Random handlers
+ */
 int FindPage(int* arr, int size, int key) 
 {
     for (unsigned i = 0; i < size; i++) 
@@ -132,23 +137,21 @@ int FindPage(int* arr, int size, int key)
             return i;
         }  
     }
-
     return -1;
 }
 
-void FrameworkSetup(struct page_table *pt)
-{
-    TotalPages = page_table_get_npages(pt);
-    TotalFrames = page_table_get_nframes(pt);
-    physmem = page_table_get_physmem(pt);
-}
 
-
-/* Custom Fault Handler*/
+/**
+ * Custome Fault Handler
+ * Eviction policy is based on random but gives
+ * a second chance to any frame with PROT_WRITE
+ * bit set.
+ */
 void cust_fault_handler(struct page_table *pt, int page)
 {
     Faults++;
 
+    // Get info about faulting frame
     int frame, bits;
     page_table_get_entry(pt, page, &frame, &bits);
 
@@ -159,12 +162,14 @@ void cust_fault_handler(struct page_table *pt, int page)
         // If we still have unallocated frames
         if(counter < TotalFrames)
         {
-            MemArray[counter] = page;
+            FrameArray[counter] = page;
             counter++;
             disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
         }
+        // Execute eviction policy
         else
         {
+            // Find a frame to evict here.
             int out_page = cust_get_frame(pt);
             int out_frame, out_bits;
             page_table_get_entry(pt, out_page, &out_frame, &out_bits);
@@ -172,28 +177,30 @@ void cust_fault_handler(struct page_table *pt, int page)
             {
                 Writes++;
                 disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
-                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             }
-            else
-            {
-                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
-            }
+            disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
             bits = PROT_READ;
-            int mem = FindPage(MemArray, TotalFrames, out_page);
-            MemArray[mem] = page;
+            // put the new page into the FrameArray
+            int frame_index = FindPage(FrameArray, TotalFrames, out_page);
+            FrameArray[frame_index] = page;
         }
         bits = PROT_READ;
     }
+    // else make it dirty
     else
     {
         bits = PROT_READ|PROT_WRITE;
     }
+    // Finally, set the page table entry
     page_table_set_entry(pt,page,frame,bits);
 }
 
-/* Handles random faults */
+/*
+ * Random Fault Handler
+ * Chooses frames to evict purely randomly.
+ */
 void random_fault_handler(struct page_table *pt, int page)
 {
     Faults++;
@@ -208,7 +215,7 @@ void random_fault_handler(struct page_table *pt, int page)
         // If we still have unallocated frames
         if(counter < TotalFrames)
         {
-            MemArray[counter] = page;
+            FrameArray[counter] = page;
             counter++;
             disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
         }
@@ -221,17 +228,16 @@ void random_fault_handler(struct page_table *pt, int page)
             {
                 Writes++;
                 disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
-                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             }
-            else
-            {
-                disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
-            }
+
+            disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
             bits = PROT_READ;
-            int mem = FindPage(MemArray, TotalFrames, out_page);
-            MemArray[mem] = page;
+
+            // Put new page into FrameArray
+            int frameIndex = FindPage(FrameArray, TotalFrames, out_page);
+            FrameArray[frameIndex] = page;
         }
         bits = PROT_READ;
     }
@@ -240,62 +246,6 @@ void random_fault_handler(struct page_table *pt, int page)
         bits = PROT_READ|PROT_WRITE;
     }
     page_table_set_entry(pt,page,frame,bits);
-}
-
-void random_plus_fault_handler(struct page_table *pt, int page)
-{
-
-    FrameworkSetup(pt);
-
-    physmem = page_table_get_physmem(pt);
-    Faults++;
-
-    int result = FindPage(MemArray, TotalFrames, page);
-
-    if (result > -1) 
-    {
-        page_table_set_entry(pt, page, result, PROT_READ|PROT_WRITE);
-    }
-    else if (counter < TotalFrames) 
-    {
-
-        page_table_set_entry(pt, page, counter, PROT_READ);
-        disk_read(disk, page, &physmem[counter * PAGE_SIZE]);
-
-        MemArray[counter] = page; 
-        Reads++;
-        counter++;
-    } 
-    else 
-    {
-        bool found_not_recent = false;
-        int aux = lrand48() % TotalFrames;
-        while(!found_not_recent){
-            if(queueContains(fifoq, page)){
-                aux = lrand48() % TotalFrames;				
-            }
-            else
-            {
-                if(fifoq->size < fifoq->capacity)
-                {
-                }
-                else
-                {
-                    pop_fifo();
-                }
-                push_fifo(page);
-                found_not_recent = true;
-            }
-            MemArray[aux] = page;
-            disk_write(disk, MemArray[aux], &physmem[aux * PAGE_SIZE]);
-            disk_read(disk, page, &physmem[aux * PAGE_SIZE]);
-            page_table_set_entry(pt, page, aux, PROT_READ);
-            Writes++;
-            Reads++;
-        }
-    }
-
-
 }
 
 /*
@@ -325,8 +275,9 @@ int main(int argc, char *argv[])
 
     if (!strcmp(argv[3], "rand"))
     {
-        setup_mem_array(nframes);
+        setup_frame_array(nframes);
         UserOption = 1;
+        srand(time(NULL));
     }
     else if (!strcmp(argv[3], "fifo"))
     {
@@ -335,11 +286,10 @@ int main(int argc, char *argv[])
     }
     else if (!strcmp(argv[3], "custom"))
     {
-        setup_mem_array(nframes);
-        setup_fifo(nframes-1);
+        setup_frame_array(nframes);
         UserOption = 3;
+        srand(time(NULL));
     }
-
 
     const char *program = argv[4];
 
@@ -372,22 +322,17 @@ int main(int argc, char *argv[])
     {
         pt = page_table_create( npages, nframes, fifo_fault_handler);
     }
-
     /* Handles Random */
-
     else if (UserOption == 1)
     {
         pt = page_table_create( npages, nframes, random_fault_handler);
         FrameworkSetup(pt);
-        // Set up RNG
-        srand(time(NULL));
     }
     // Custom
     else if (UserOption == 3)
     {
         pt = page_table_create( npages, nframes, cust_fault_handler);
         FrameworkSetup(pt);
-        srand(time(NULL));
     }
 
     else
@@ -421,7 +366,6 @@ int main(int argc, char *argv[])
 
     } else {
         fprintf(stderr,"unknown program: %s\n",argv[3]);
-
     }
 
     Output = fopen(outputFile, "a");
@@ -449,16 +393,24 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void setup_mem_array(int cap)
+/*
+ * Sets up int array of frame numbers
+ * based on a based capacity.
+ * Initializes all indices to -1
+ */
+void setup_frame_array(int cap)
 {
-    MemArray = (int *)malloc(cap * sizeof(int));
+    FrameArray = (int *)malloc(cap * sizeof(int));
 
     for (unsigned i = 0; i < cap; i++)
     {
-        MemArray[i] = -1;
+        FrameArray[i] = -1;
     }
 }
 
+/*
+ * Creates FIFO queue.
+ */
 void setup_fifo(int cap)
 {
     FifoQueue *q = (FifoQueue*)malloc(sizeof(FifoQueue));
@@ -467,6 +419,11 @@ void setup_fifo(int cap)
 
     fifoq = q;
 }
+
+/* 
+ * Pushes an int page number to the back
+ * of the FIFO queue
+ */
 void push_fifo(int page)
 {
     FifoNode *n = (FifoNode*)malloc(sizeof(FifoNode));
@@ -484,6 +441,11 @@ void push_fifo(int page)
     }
     fifoq->size = fifoq->size + 1;
 }
+
+/*
+ * Pops an int page number from
+ * the front of the FIFO queue
+ */
 int pop_fifo(void)
 {
     FifoNode *n = fifoq->front;
@@ -495,30 +457,18 @@ int pop_fifo(void)
     return i;
 }
 
-bool queueContains(FifoQueue *queue, int page){
-    FifoNode * node = queue->front;
-    if(queue->front != NULL){
-        while(node != NULL){
-            if(node->data == page){
-                //break if node is found
-                printf("node found\n");
-                return true;
-            }
-            if(node == queue->rear){
-                //break if node is not in queue
-                break;
-            }
-            node = node->next;
-        }
-    }
-    return false;
-}
-
+/*
+ * Finds a frame to evict based on a random, second-chance
+ * policy:
+ * 1. Select a random frame.
+ * 2. If the PROT_EXEC bit is set, unset it and look again.
+ * 3. If it is not set, return that page.
+ */
 int cust_get_frame(struct page_table *pt)
 {
     while(1)
     {
-        int page = MemArray[rand() % TotalFrames];
+        int page = FrameArray[rand() % TotalFrames];
         int frame, bits;
         page_table_get_entry(pt, page, &frame, &bits);
         if(bits&PROT_EXEC)
@@ -531,4 +481,15 @@ int cust_get_frame(struct page_table *pt)
             return page;
         }
     }
+}
+
+/*
+ * Establishes some of the important globals for
+ * the random and custom algorithms
+ */
+void FrameworkSetup(struct page_table *pt)
+{
+    TotalPages = page_table_get_npages(pt);
+    TotalFrames = page_table_get_nframes(pt);
+    physmem = page_table_get_physmem(pt);
 }
