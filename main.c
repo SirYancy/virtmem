@@ -1,5 +1,5 @@
 /*
- * Virtual Memory Simulator Project
+ * Virtual Memory Simulator Project 1.0
  *
  * Eric Kuha
  * Carlos Ferry
