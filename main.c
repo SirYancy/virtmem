@@ -14,7 +14,7 @@
  *
  *  Custom: evicts pages on a random, second-chance basis, favoring
  *          pages that have the dirty bit set. We have named this
- *          algorithm: "Second-try-fifo", or "2ndfifo".
+ *          algorithm: "Second-try-random", or "2ndrand".
  */
 
 #include "page_table.h"
