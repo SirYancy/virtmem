@@ -2,7 +2,7 @@
 
 rm -f *results.csv
 
-algorithm=rand
+algorithm=custom
 
 
 for i in $(seq 5 5 100)

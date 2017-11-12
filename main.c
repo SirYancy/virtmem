@@ -258,20 +258,25 @@ void cust_fault_handler(struct page_table *pt, int page)
  
 void random_fault_handler(struct page_table *pt, int page)
 {
+    /* Increment page fault counter. */
+    
     Faults++;
 
+    /* Get information about the page. */
+    
     int frame, bits;
+    
     page_table_get_entry(pt, page, &frame, &bits);
 
-
-    /* Checks If page is not in memory. */
+    /* if this page is not in memory */
     
     if (!bits&PROT_READ)
     {
+        /* There will be a read. */
+        
         Reads++;
         
-        /* If we still have unallocated frames */
-        
+        /* If not all frames are being used. */
         if (counter < TotalFrames)
         {
             frame = counter;
@@ -280,31 +285,36 @@ void random_fault_handler(struct page_table *pt, int page)
         }
         else
         {
-            int out_page = rand() % TotalFrames;
+            /* Evicting random page */
+            
+            int out_page = FrameArray[rand() % TotalFrames];
             int out_frame, out_bits;
             page_table_get_entry(pt, out_page, &out_frame, &out_bits);
-           
+
+            /* If the evicted frame is dirty, write it to the disk */
+            
             if (out_bits&PROT_WRITE)
             {
                 Writes++;
                 disk_write(disk, out_page, &physmem[out_frame*PAGE_SIZE]);
             }
-
+            
             disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
-
         }
-
         FrameArray[frame] = page;
         bits = PROT_READ;
     }
+    
+    /* else, make it dirty */
+    
     else
     {
         bits = PROT_READ|PROT_WRITE;
     }
-    
     page_table_set_entry(pt,page,frame,bits);
+
 }
 
 /*

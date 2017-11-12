@@ -1,19 +1,30 @@
+CC = gcc
 
-virtmem: main.o page_table.o disk.o program.o
-	gcc main.o page_table.o disk.o program.o -o virtmem
+CFLAGS = -Wall
+
+OBJECTS = page_table.o disk.o program.o main.o
+
+default: clean
+default: virtmem
+
+debug: CFLAGS += -g -o0
+debug: clean
+debug: virtmem
 
 main.o: main.c
-	gcc -Wall -g -c main.c -o main.o
+	$(CC) $(CFLAGS) -c main.c -o main.o
 
 page_table.o: page_table.c
-	gcc -Wall -g -c page_table.c -o page_table.o
+	$(CC) $(CFLAGS) -c page_table.c -o page_table.o
 
 disk.o: disk.c
-	gcc -Wall -g -c disk.c -o disk.o
+	$(CC) $(CFLAGS) -c disk.c -o disk.o
 
 program.o: program.c
-	gcc -Wall -g -c program.c -o program.o
+	$(CC) $(CFLAGS) -c program.c -o program.o
 
+virtmem: $(OBJECTS)
+	$(CC) $(CFLAGS) $(OBJECTS) -o virtmem
 
 clean:
-	rm -f *.o virtmem
+	rm -f *.o virmem myvirtualdisk core
