@@ -27,4 +27,4 @@ virtmem: $(OBJECTS)
 	$(CC) $(CFLAGS) $(OBJECTS) -o virtmem
 
 clean:
-	rm -f *.o virmem myvirtualdisk core
+	rm -f *.o virtmem myvirtualdisk core
