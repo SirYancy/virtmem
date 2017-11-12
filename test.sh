@@ -2,7 +2,8 @@
 
 rm -f *results.csv
 
-algorithm=fifo
+algorithm=rand
+
 
 for i in $(seq 5 5 100)
 do

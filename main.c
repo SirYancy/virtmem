@@ -145,7 +145,7 @@ void fifo_fault_handler( struct page_table *pt, int page)
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
         }
-        
+        /* Push page to queue */
         push_fifo(page);
         bits = PROT_READ;
     }
@@ -156,7 +156,6 @@ void fifo_fault_handler( struct page_table *pt, int page)
     {
         bits = PROT_READ|PROT_WRITE;
     }
-
     page_table_set_entry(pt,page,frame,bits);
 
 }
@@ -230,7 +229,6 @@ void cust_fault_handler(struct page_table *pt, int page)
             disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
-            bits = PROT_READ;
             
             /* put the new page into the FrameArray */
             
@@ -265,6 +263,7 @@ void random_fault_handler(struct page_table *pt, int page)
     int frame, bits;
     page_table_get_entry(pt, page, &frame, &bits);
 
+
     /* Checks If page is not in memory. */
     
     if (!bits&PROT_READ)
@@ -275,9 +274,9 @@ void random_fault_handler(struct page_table *pt, int page)
         
         if (counter < TotalFrames)
         {
-            FrameArray[counter] = page;
-            counter++;
+            frame = counter;
             disk_read(disk, page, &physmem[frame*PAGE_SIZE]);
+            counter++;
         }
         else
         {
@@ -294,14 +293,10 @@ void random_fault_handler(struct page_table *pt, int page)
             disk_read(disk, page, &physmem[out_frame*PAGE_SIZE]);
             page_table_set_entry(pt, out_page, 0, 0);
             frame = out_frame;
-            bits = PROT_READ;
 
-            /* Put new page into FrameArray */
-            
-            int frameIndex = FindPage(FrameArray, TotalFrames, out_page);
-            FrameArray[frameIndex] = page;
         }
-        
+
+        FrameArray[frame] = page;
         bits = PROT_READ;
     }
     else
